@@ -1,0 +1,394 @@
+---
+title: "MA334-Assignment"
+author: "Reg no: 2211543"
+subtitle: "Data Analysis on the Biodiversity Measures"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+***
+```{r datafetch, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE,
+	comment = NULL
+)
+# clear out the past 
+if(!is.null(dev.list())) dev.off()  
+rm(list = ls())
+cat("\014")
+
+#################PACKAGES#####################
+
+library(dplyr)
+library(tidyverse)
+library(corrplot)
+library(gridExtra)
+library(grid)
+library(tidyr) # for splitting on the period see below
+library(moments) # for calculating moments for skewness etc.
+library(reshape2)
+par(mfrow=c(1, 1)) 
+
+#################DATA FETCH###################
+
+setwd("C:/Files/UoE/Modules/Spring/MA334-7-SP Data analysis and statistics with R/Assignment")
+proj_data <- read.csv("proportional_species_richness_V2.csv") #reading the V2 data
+proj_data_nona <- read.csv("proportional_species_richness_V3.csv") #reading the V3 data
+
+
+```
+### Introduction
+
+**Biodiversity**, the variety of life on Earth, is an essential part of our planet's ecosystem. It is a measure of variability of species, genetics and the level of ecosystem. In recent times, the biodiversity has been degraded to its lowest extent as a result of recent environmental changes which led to mass extinctions. We have been provided with the data of biodiversity measures of *different taxonomic groups* in various dominant land class and time periods. The data here are based on the 11 taxonomic groups and I'll be performing analysis on selective 7 taxonomic groups which will be referred as BD7 with BD11. It does contains data in two different time periods such as Y70(from 1970) and Y00(from 2000). The data varies with location in all over Britain which has been segmented by grid squares measuring 100km across and also with different dominant land class accordingly. The segments are based on the *UK National Grid* in which the vertical lines are called Eastings and the horizontal lines are Northings. Their values tend to increase if you travel across east and north respectively. The mean of all taxonomic group has also provided, called **ecologicalStatus**.
+
+
+I'll be analyzing the data on biodiversity measure of the selected 7 taxonomic groups i.e, Bees, Bryophytes, Butterflies, Carabids, Hover flies, Grasshoppers Crickets, Vascular plants  with all other taxonomic groups in different time periods and in various location. I'll also be performing some statistics on the data to provide insights into patterns and trends in biodiversity.
+
+##### _Main objectives:_
+  
+  1. Hypothesis Test
+  2. Simple Linear Regression
+  3. Multiple Linear Regression
+  4. Open analysis on the data
+
+
+### Data Exploration
+
+The data consists of biodiversity measures for all taxonomic groups over two different time periods and across multiple locations. The _ecologicalStatus_ is the mean of all the taxonomic groups' biodiversity measures and the _Northing_, _Easting_ values are the coordinates used to accurately locate them on the map. The _dominantLandClass_ is the names of the 45 different land classes in and around the UK. The following plot provides insights on the number of species in every dominantLandClass. The maximum number of species are from **3e** followed by **2e**, where the least are from *18w*. 
+
+```{r data1, echo=FALSE, fig.height=5}
+# options(width = 200)
+
+# names(proj_data)
+
+# count incidents (both periods) for each land classification for later selection
+n1 <- proj_data%>%group_by(dominantLandClass)%>%count()%>%
+  arrange(dominantLandClass)
+
+ggplot(n1, aes(dominantLandClass, n)) +
+  geom_histogram(stat = "identity", fill = "darkgreen", color = "white", bins = 10) +
+  labs(title = "Occurences of Species in different dominantLandClass ", x = "dominantLandClass", y = "Species count") +
+  coord_flip()
+
+# selecting allocated  7 chosen predictors to form the trial eco_stat
+all <- c(2:12)
+eco_selected <- c(2,4,5,6,7,11,12) #selecting only the allocated 7 taxonomic groups
+eco_not_selected <- all[!(all%in%eco_selected)]
+eco_names <- names(proj_data[,2:12])
+eco_selected_names <- names(proj_data)[eco_selected]
+# print("The allocated taxonomic groups")
+# eco_selected_names
+
+```
+
+Here, we are looking at the distribution of each taxanomic groups and presenting their correlation to understand the relationship between the different selective taxonomic groups. From the histograms, we can interpret that some groups are **normally distributed** such as, butterflies, while others sit on a **skewed distribution**, like Bryophytes. We notice that the Bees and Butterflies possess **positive correlation** from the correlation matrix, whereas carabits are **negatively correlated**.
+
+
+```{r univariat, echo=FALSE, fig.height=5, fig.width=8}
+
+# distribution of each taxonomic group on the whole
+g1 <- ggplot(proj_data_nona, aes(x = Bees)) + 
+  geom_histogram(binwidth = 0.1, fill = "lightgreen", color = "black")
+
+g2 <- ggplot(proj_data_nona, aes(x = Bryophytes)) + 
+  geom_histogram(binwidth = 0.1, fill = "lightgreen", color = "black")
+
+g3 <- ggplot(proj_data_nona, aes(x = Butterflies)) + 
+  geom_histogram(binwidth = 0.1, fill = "lightgreen", color = "black")
+
+g4 <- ggplot(proj_data_nona, aes(x = Carabids)) + 
+  geom_histogram(binwidth = 0.1, fill = "lightgreen", color = "black")
+
+g5 <- ggplot(proj_data_nona, aes(x = Hoverflies)) + 
+  geom_histogram(binwidth = 0.1, fill = "lightgreen", color = "black")
+
+g6 <- ggplot(proj_data_nona, aes(x = Grasshoppers_._Crickets)) + 
+  geom_histogram(binwidth = 0.1, fill = "lightgreen", color = "black")
+
+g7 <- ggplot(proj_data_nona, aes(x = Vascular_plants)) + 
+  geom_histogram(binwidth = 0.1, fill = "lightgreen", color = "black")
+
+grid.arrange(g1, g2, g3, g4, g5, g6, g7, nrow=2, top=textGrob("Distribution of the allocated taxonomic group"))
+
+```
+
+```{r corrplot, echo=FALSE, fig.height=4, fig.width=5}
+
+#correlation matrix of the selected taxonomic groups
+cor_BD7 <- cor(proj_data_nona[ ,c(2,4,5,6,7,11,12)])
+corrplot(cor_BD7, method = "square", title = "Correlation of 7 taxonomic groups", 
+         tl.col="black", tl.srt=45,  mar=c(0,0,1,0))
+```
+
+I have split all the 7 taxonomic groups accordingly and found the correlation between the location and the allocated taxonomic groups. As per the box plot, we found that the *Bees* are the dominating **taxonomic group** in terms of the proportional species richness among other groups followed by the grasshoppers. The amount of vascular_plants is too low, which pushes it down to the least variety of biodiversity. 
+
+```{r proportion, echo=FALSE, fig.height=4, fig.width=7}
+# Select columns of interest & Calculating mean and SD 
+subset_BD7 <- proj_data_nona %>%
+  select(Location, Bees, Bryophytes, Butterflies, Carabids, Hoverflies, Grasshoppers_._Crickets, Vascular_plants)
+var_stats <- subset_BD7 %>%
+  summarise(across(everything(), list(mean = mean, sd = sd)))
+
+# Melting data for visualization
+melt_data <- subset_BD7 %>%
+  pivot_longer(cols = -Location, names_to = "groups", values_to = "Prop_species_richness")
+
+# visualizing the data
+ggplot(melt_data, aes(y = Prop_species_richness, x = groups)) +
+  geom_boxplot() +
+  labs(title = "Proportional species richness for different taxonomic groups", 
+  y = "Proportional species richness", 
+  x = "Allocated taxonomic groups")
+
+```
+
+```{r data2, echo=FALSE, include=FALSE}
+
+# calculate the bio-div measure over 7 taxonomic groups
+mean_selected <- rowMeans(proj_data[,eco_selected],na.rm=TRUE) # mean the 7 columns
+
+# adding the biodiversity measure which is the mean over 7 taxonomic groups
+proj_data_MA334 <- proj_data%>%mutate(eco_status_7=mean_selected)
+head(proj_data_MA334)
+
+proj_data_MA334_Y70 <- proj_data_MA334%>%filter(period=="Y70")
+proj_data_MA334_Y00 <- proj_data_MA334%>%filter(period=="Y00")
+table(proj_data_MA334_Y70$period); table(proj_data_MA334_Y00$period) # check that these separate periods 
+
+eco_difference <- proj_data_MA334_Y00[,eco_selected ]-proj_data_MA334_Y70[,eco_selected ] # general differences between the two periods 
+head(eco_difference)
+```
+
+### Hypothesis Testing
+
+The following plot allow a visual comparison of _eco_status_7_ over the two periods as well as the distribution of the change in _eco_status_7_ in the two periods. The maximum number of outliers in the mean of the seven taxonomic group in the period **Y00** is significantly more than compared to the period **Y70**.
+
+```{r hypodat1, echo=FALSE, fig.height=4, fig.width=7}
+
+# box plot comparison for the two periods ignoring all other variables 
+eco_status <- proj_data_MA334%>%pull(eco_status_7)
+eco_period <- proj_data_MA334%>%pull(period)
+
+bd7_1 <- ggplot(proj_data_MA334, aes(period, eco_status_7)) + 
+  geom_boxplot() + 
+  ggtitle("Comparison of species count in different periods")
+
+proj_data_MA334_period <- proj_data_MA334%>%select(Location,period,eco_status_7)
+proj_data_MA334_split <- proj_data_MA334_period%>%pivot_wider(names_from =period,values_from=eco_status_7)
+proj_data_MA334_split <- proj_data_MA334_split%>%mutate(BD7_change=Y00-Y70)
+
+
+bd7_2 <- ggplot(proj_data_MA334_split, aes(x = BD7_change)) +
+  geom_histogram(binwidth = 0.1, color = "black", fill = "white") +
+  labs(title = "Distribution of the BD7 change",
+       x = "BD7_change", y = "Frequency")
+
+grid.arrange(bd7_1, bd7_2, nrow = 1, ncol = 2)
+```
+
+Performing a t.test with the _BD7_change_, which is nothing but the difference (Y00-Y70) of BD7 in two different time period. The frequency of BD7_change is equally distributed, which can be interpreted from the histogram. The null hypothesis of this test is that the population mean of the _BD7_change_ is equal to 0. The alternate hypothesis is not equal to 0. The t-test here is used to check whether there is any difference between the mean of the _BD7_change_ and the value 0. The t value, -8.2496 denotes that the no.of.standard errors in the sample mean is away from the hypothesized population mean. The df is 2798, and the p-value is 2.417e-16, which is less than the significance level. So the test suggests and supports the alternative hypothesis, as we have stronger evidence against the null hypothesis, which is that the mean of _BD7_change_ is different from 0. The mean value lies somewhere between the 95 percent confidence interval, i.e., -0.01213813.
+
+```{r ttest, echo=FALSE}
+BD7_change <- proj_data_MA334_split%>%pull(BD7_change)
+# t test with H0: mu=0
+t.test(BD7_change,mu=0)  
+
+```
+
+```{r hypodat2, echo=FALSE}
+mean_omitted <- rowMeans(proj_data[,eco_not_selected],na.rm=TRUE)
+proj_data_MA334 <- proj_data_MA334%>%mutate(eco_status_4=mean_omitted)
+
+proj_data_MA334_period1 <- proj_data_MA334%>%select(Location,period,eco_status_4)
+proj_data_MA334_split1 <- proj_data_MA334_period1%>%pivot_wider(names_from =period,values_from=eco_status_4)
+proj_data_MA334_split1 <- proj_data_MA334_split1%>%mutate(BD4_change=Y00-Y70)
+
+```
+
+
+Providing with the plot of Empirical Cumulative distribution function (ecdf) between BD7 data and the BD11 data, which is the overall biodiversity measures of the taxonomic groups. Here the CDF, shows the probability that a random observation from the distribution is less than or equal to a given value, in which the green line represents the 7 taxonomic groups' mean and the red line denotes the overall mean.
+From the p-value *3.199e-08* observed from the Kolmogorov-Smirnov test, we can reject the null hypothesis and confirm that there are two different distributions.
+
+```{r 7vs11, echo=FALSE, fig.height=4, fig.width=7}
+
+# both ecdf together and do a kolmogorov test H0: distributions are the same
+BD7_cdf <- ecdf(proj_data_MA334$eco_status_7)
+BD11_cdf <- ecdf(proj_data_MA334$ecologicalStatus)
+plot(BD11_cdf,col="red")
+lines(BD7_cdf,col="green")
+ks.test(proj_data_MA334$eco_status_7,proj_data_MA334$ecologicalStatus)
+
+```
+
+The study analyzes the *descriptive statistics* of every biodiversity indices by taking their mean, standard deviation and the skewness. This shows the values tend to change before and after the time period.
+```{r exploration, echo=FALSE}
+##################DATA EXPLORATION###################
+
+# splitting the data by period and comparing the stats before and after 
+table <- data.frame()
+for(i in eco_selected){
+  table <- rbind(table,
+                 c(eco_names[i-1],
+                   round(mean(proj_data_MA334[,i],na.rm = TRUE),digits = 2),
+                   round(sd(proj_data_MA334[,i],na.rm = TRUE),digits = 2),
+                   round(skewness(proj_data_MA334[,i],na.rm = TRUE),digits = 2)
+                 ))}
+colnames(table) <- c("taxi_group","mean","sd","skewness")
+table%>%arrange(sd,skewness)
+
+cont_vars <- proj_data_MA334%>%select(c(eco_selected,16,17))
+cormat <- round(x = cor(cont_vars,use="pairwise.complete.obs"), digits = 2)
+
+```
+
+```{r Correlation, echo=FALSE, include=FALSE}
+
+# now using the eastings and northings (these may be better used as predictors )
+plot(proj_data_MA334$eco_status_7~proj_data_MA334$Easting) 
+cat("The correlation between the eco_status_7 and the Easting is", cor(proj_data_MA334$eco_status_7,proj_data_MA334$Easting))
+plot(proj_data_MA334$eco_status_7~proj_data_MA334$Northing)
+cat("The correlation between the eco_status_7 and the Northing is" ,cor(proj_data_MA334$eco_status_7,proj_data_MA334$Northing))
+
+```
+
+### Linear Regression
+
+The linear regression for the _eco_status_7_ with only Northing as a predictor has been carried out. We can observe from the values that the negative relationship between the mean of 7 taxonomic group and the northing, as the coefficient of northing is -1.808e-07 with the standard error of 5.043e-09. The northing value has 18.68% tendency on the variation of _eco_status_7_. The p-value indicates that the northing can significantly improve the fit of the model. The residuals has been plotted in the qq-plot, which shows a straight line which means that the residuals are normally distributed.
+
+Another simple linear regression between the 7 allocated taxonomic groups with the overall taxonomic groups and displaying the linReg values with different time periods. The regression line(red) and the identity line(green), which represents the perfect fit, has been overlaid on the scatter plot. Then using the qqnorm() on the residuals will give us information on the assumption of normality for the residuals. The intercept values demonstrates a positive association between the mean of all the taxonomic groups and the mean of the selected 7 taxonomic groups in both the periods y00 and y70.
+
+```{r linReg, echo=FALSE, fig.height=4, fig.width=7}
+# Simple linear regression
+# regressions of eco_status_7 against ecologicalstatus based on all 11
+par(mfrow = c(1,2))
+plot(proj_data_MA334$eco_status_7~proj_data_MA334$ecologicalStatus)
+abline(0,1,col="red")
+lin_mod7_11 <- lm(proj_data_MA334$eco_status_7~proj_data_MA334$ecologicalStatus)
+summary(lin_mod7_11)
+abline(lin_mod7_11,col="green")
+#plot(jitter(fitted(lin_mod7_11)),residuals(lin_mod7_11),xlab="Fitted",ylab="Residuals")
+#abline(h=0,col="blue")
+qqnorm(residuals(lin_mod7_11))
+qqline(residuals(lin_mod7_11),col="red")
+
+# do the same for each period report and differences 
+proj_data_MA334_Y70 <- proj_data_MA334%>%filter(period=="Y70")
+lin_mod <- lm(proj_data_MA334_Y70$eco_status_7~proj_data_MA334_Y70$ecologicalStatus)
+lin_mod$coefficients
+
+# for later period 
+proj_data_MA334_Y00 <- proj_data_MA334%>%filter(period=="Y00")
+lin_mod <- lm(proj_data_MA334_Y00$eco_status_7~proj_data_MA334_Y00$ecologicalStatus)
+lin_mod$coefficients
+
+```
+
+```{r linreg1, include=FALSE}
+# not including this as I just wanted to use the df from this
+
+# doing a linear regression with only Northing as a predictor 
+lin_mod <- lm(proj_data_MA334$eco_status_7~proj_data$Northing)
+summary(lin_mod)
+qqnorm(lin_mod$residuals)
+qqline(lin_mod$residuals,col="red")
+
+# linear regression of BD4 on BD7 
+mean_selected <- rowMeans(proj_data[,eco_not_selected ],na.rm=TRUE) # mean the rem 4 columns 
+
+# regressions of means: eco_status_4 against others not inc eco_status_4 data
+plot(proj_data_MA334$eco_status_4~proj_data_MA334$eco_status_7)
+abline(0,1,col="red")
+lin_mod <- lm(proj_data_MA334$eco_status_4~proj_data_MA334$eco_status_7)
+summary(lin_mod)
+abline(lin_mod,col="green")
+plot(jitter(fitted(lin_mod)),residuals(lin_mod),xlab="Fitted",ylab="Residuals")
+abline(h=0,col="blue")
+qqnorm(residuals(lin_mod))
+qqline(residuals(lin_mod),col="red")
+
+```
+
+
+### Multiple Regression
+
+Here, I am performing *multiple regression* between the **BD7 groups** and **BD4 groups**. First the data has been split into training 80% and testing 20%, then its trained using the training data and all other predictors of BD4. Then the lm() function fits the multiple regression model and displays the output. With the model making predictions on the test dataset, the correlation between the actual values and the predicted values has been computed and the scatter plot has been presented with the line indicating the perfect predictions. Even the differences between the actual values and the predicted values has also been plotted to check for any patterns that may indicate any issues with the model fit. Finally a QQ plot with the differences has been presented to check for normality. From the *p-value*, we can say that the taxonomic  groups except the grasshopper_crickets, have a strong positive relation with the ecologicalStatus. The model explained 54.5% of the variation in BD11 mean from the R-squared values. Overall the model is statically significant based on the p-values and the F-statistic values.
+
+```{r mulReg1, echo=FALSE}
+
+# multiple linear regression BD4 against the selected 7 
+
+# Create Training and Test data 
+trainingRowIndex <- sample(1:nrow(proj_data_MA334), 0.8*nrow(proj_data_MA334))  # row indices for 80% training data
+trainingData <- proj_data_MA334[trainingRowIndex, ]  # model training data
+testData  <- proj_data_MA334[-trainingRowIndex, ]%>%na.omit # for test data remove NAs 
+
+# Building the model on training data
+lmMod_train <- lm(eco_status_4~.,
+                  data=trainingData[c(eco_selected_names,"eco_status_4")],
+                  na.action=na.omit,y=TRUE)
+summary (lmMod_train)  # model summary
+
+par(mfrow = c(1,2))
+# cor(lmMod_train$fitted.values,lmMod_train$y) # cor training data 
+Eco_4_Pred <- predict(lmMod_train, testData) # predict to check model on test Data
+#cor(Eco_4_Pred,testData$eco_status_4)
+plot(Eco_4_Pred~testData$eco_status_4)
+abline(0,1,col="red")
+# mis_fit_to_testData are the residuals for the train model fit to the test data 
+mis_fit_to_testData <- testData$eco_status_4-Eco_4_Pred
+#plot(mis_fit_to_testData~Eco_4_Pred) # look for unwanted pattern in residuals
+#abline(0,0,col="red")
+qqnorm(mis_fit_to_testData) # check for normality of residuals in prediction
+qqline(mis_fit_to_testData,col="red")
+
+
+
+```
+
+### Open Analysis
+
+From the plot earlier in the report, which shows the number of species over the *dominantLandClass*, we came to know that the majority of species were from the class *'3e'* i.e, **E Anglia/S England**. So examining the dominantLandClass, *'3e'* with two different time periods.
+The following plot compares the BD7 values, which are the mean of the allocated taxonomic groups in East Anglia/South England between two time periods: Y00 & Y70. The histogram revealed that the BD7 values increased between the two periods, hitting the maximum in Y00 period, which describes that areas in Y00 with a good ecological status. Comparatively, the species count was lower in the areas with lowest ecological status in Y70. This highlights the importance of monitoring the biodiversity over period to gain insights and act accordingly to preserve it.
+
+```{r openana, echo=FALSE, fig.height=4}
+
+# creating a copy of a df
+MA334df_copy <- data.frame(proj_data_MA334)
+
+# separating 3e dominantLandClass with different periods
+BD7_3e_y70 <- MA334df_copy %>%
+  filter(dominantLandClass == "3e", period == "Y70") %>%
+  group_by(eco_status_7, dominantLandClass, period) %>%
+  summarize()
+
+BD7_3e_y00 <- MA334df_copy %>%
+  filter(dominantLandClass == "3e", period == "Y00") %>%
+  group_by(eco_status_7, dominantLandClass, period) %>%
+  summarize()
+
+# binding them with rows and presenting it as a histogram
+BD7_3e <- rbind(data.frame(period = "Y70", eco_status_7 = BD7_3e_y70$eco_status_7),
+                data.frame(period = "Y00", eco_status_7 = BD7_3e_y00$eco_status_7))
+
+ggplot(BD7_3e, aes(x=eco_status_7, fill=period)) +
+  geom_histogram(binwidth = 0.01, alpha = 0.5, position = "identity") +
+  scale_fill_manual(values = c("#F8766D", "#00BFC4")) +
+  labs(title = "BD7 in E Anglia/S England for different periods",
+       x = "BD7", y = "Occurrences")
+
+```
+
+### Conclusion
+
+Based on the **overall analysis** on the biodiversity measures of the selective taxonomic groups *BD7* and with all other groups *BD11*, we interpret that the data doesn't shift drastically but we could identify some trends and able to understand the presence of biodiversity and its decline. Additionally we also examined the changes over the values with the *BD4 taxonomic groups*. We found the correlation significance between taxonomic groups, and some were positively correlated like bees, butterflies, while others are negatively correlated, such as carabids. 
+
+Finally, we found that the abundance of several taxonomic groups including bees, bryophytes, butterflies, etc, can be used as predictors of the ecological status of an area. We also found the amount of species differ over time period Y00 and Y70, which taught us the importance of monitoring the biodiversity measures to prevent the ecosystem from extinction. Our findings suggests there is a strong decline in the biodiversity and there should be measures taken in order to increase the conservation efforts to protect the biodiversity for a sustainable ecosystem in the future. 
+
+### References
+
+1. Wikipedia contributors. (2023). Biodiversity. In Wikipedia. Retrieved from https://en.wikipedia.org/wiki/Biodiversity
+
+2. Fountain, T., et al. (2015). The impacts of climate warming on the properties of boreal forests in Alaska. Journal of Ecology, 103(2). https://doi.org/10.1111/1365-2664.12784
